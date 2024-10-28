@@ -1,4 +1,4 @@
-# s21_string+
+# s21_string+ with love to school 21 
 
 Implementation of the string.h using macros to reduce duplicates in sprintf.
 
