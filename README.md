@@ -1,6 +1,139 @@
-# s21_string+ with love to school 21 
+# s21_string+ using macros
 
-Implementation of the string.h using macros to reduce duplicates in sprintf.
+
+
+Здесь я использую глобальную переменную чтобы обеспечить доступ к структуре флагов из любого места программы(что запрещено по заданию школы, но это мой гит, так что оставлю как есть).
+```
+extern Flags flag;
+Flags flag = {'\0'};
+```
+
+Уменьшила дублирования похожих по логике функций использованием макросов.
+
+Без макроса:
+```
+void s21_int_to_str(int64_t val, int base, char* dest) {
+    s21_adjust_int64_t(val);                    
+  char str[EIGHT_KB] = {'0'};                     
+  int iter = EIGHT_KB - 2;                         
+  int64_t val_abs = (int64_t)(val);                      
+  int neg = ((int)val < 0) ? S21_TRUE : S21_FALSE; 
+  val_abs = neg ? -(val_abs) : val_abs;            
+  if (val_abs == 0) {                              
+    dest[0] = '0';                                 
+  }                                                
+  REBASE(val_abs, base, iter, str);                
+  for (int j = 0; str[iter]; iter++, j++) {        
+    if (neg && j == 0) {                           
+      dest[j++] = '-';                             
+    }                                              
+    dest[j] = str[iter];                           
+  } 
+}
+
+void s21_uint_to_str(uint64_t val, int base, char* dest) {
+    s21_adjust_uint64_t(val);                    
+  char str[EIGHT_KB] = {'0'};                     
+  int iter = EIGHT_KB - 2;                         
+  uint64_t val_abs = (uint64_t)(val);                      
+  int neg = ((int)val < 0) ? S21_TRUE : S21_FALSE; 
+  val_abs = neg ? -(val_abs) : val_abs;            
+  if (val_abs == 0) {                              
+    dest[0] = '0';                                 
+  }                                                
+  REBASE(val_abs, base, iter, str);                
+  for (int j = 0; str[iter]; iter++, j++) {        
+    if (neg && j == 0) {                           
+      dest[j++] = '-';                             
+    }                                              
+    dest[j] = str[iter];                           
+  } 
+}
+```
+Та же функция с макросом:
+```
+#define S21_TO_STR(val, base, dest, type)            \
+  do {                                               \
+    s21_adjust_##type(val, type);                    \
+    char str[EIGHT_KB] = {'\0'};                     \
+    int iter = EIGHT_KB - 2;                         \
+    type val_abs = (type)(val);                      \
+    int neg = ((int)val < 0) ? S21_TRUE : S21_FALSE; \
+    val_abs = neg ? -(val_abs) : val_abs;            \
+    if (val_abs == 0) {                              \
+      dest[0] = '0';                                 \
+    }                                                \
+    REBASE(val_abs, base, iter, str);                \
+    for (int j = 0; str[iter]; iter++, j++) {        \
+      if (neg && j == 0) {                           \
+        dest[j++] = '-';                             \
+      }                                              \
+      dest[j] = str[iter];                           \
+    }                                                \
+  } while (0)
+```
+
+При компиляции макросы заменяют типы и ваша функция становится более гибкой, их можно использовать как вне функции:
+```
+S21_CONVERT_CHAR(char);
+S21_CONVERT_CHAR(wchar_t);
+```
+так и в внутри функции:
+```
+void s21_int_logic(char *temp, va_list va) {
+  int64_t val = va_arg(va, int64_t);
+  S21_TO_STR(val, 10, temp, int64_t);
+  s21_adjust_precision(temp);
+  s21_adjust_flags(temp);
+}
+```
+
+
+По ходу написания программы пришлось столкнуться с тем, что в макросах должны исполняться разные подфункции в зависимости от типа данных, поэтому в этом месте я решила, что могу заметить макрос вызывающий макрос (Ну а что, проект-то учебный).
+
+```
+#define s21_adjust_uint64_t(val, type) \
+  do {                                 \
+    switch (flag.length) {             \
+      case 'h':                        \
+        val = (uint16_t)val;           \
+        break;                         \
+      case 'l':                        \
+        val = (uint64_t)val;           \
+        break;                         \
+      case 0:                          \
+        val = (uint32_t)val;           \
+        break;                         \
+    }                                  \
+  } while (0)
+
+#define S21_TO_STR(val, base, dest, type)            \
+  do {                                               \
+    s21_adjust_##type(val, type);                    \
+    char str[EIGHT_KB] = {'\0'};                     \
+    int iter = EIGHT_KB - 2;                         \
+    type val_abs = (type)(val);                      \
+    int neg = ((int)val < 0) ? S21_TRUE : S21_FALSE; \
+    val_abs = neg ? -(val_abs) : val_abs;            \
+    if (val_abs == 0) {                              \
+      dest[0] = '0';                                 \
+    }                                                \
+    REBASE(val_abs, base, iter, str);                \
+    for (int j = 0; str[iter]; iter++, j++) {        \
+      if (neg && j == 0) {                           \
+        dest[j++] = '-';                             \
+      }                                              \
+      dest[j] = str[iter];                           \
+    }                                                \
+  } while (0)
+
+```
+
+Я долгое время не знала как решить это задание, потому что до него не занималась программированием от слова совсем, но этот подход с изучением макросов позволил мне по своему заинтересоваться и довести все до конца, надеюсь и вы сможете найти что-то интересное для себя в таких учебно-монотонных задачах!
+
+П.С. Я конечно сейчас без слез взглянуть на код не могу, изменила бы многое и многое добавила, я все еще вижу недостатки - лишние дублирования, конструкции и выход за пределы массива местами, но ошибки это вроде как не стыдно, поэтому выложила, буду рада любым комментариям не выходящим за рамки приличий!
+
+
 
 ## Information
 
